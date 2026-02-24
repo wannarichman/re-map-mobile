@@ -5,9 +5,10 @@ from streamlit_folium import st_folium
 from streamlit_gsheets import GSheetsConnection
 import urllib.parse
 from datetime import date
+import re
 
 # 1. 페이지 설정
-st.set_page_config(page_title="부동산 v63 Mobile", layout="centered")
+st.set_page_config(page_title="부동산 v64 Mobile", layout="centered")
 
 # 구글 시트 정보
 SHEET_ID = "1aIPGxv9w0L4yMSHi8ESn8T3gSq3tNyfk2FKeZJMuu0E"
@@ -15,7 +16,7 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}"
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- 데이터 로드 함수 (안정적인 CSV 방식) ---
+# --- 데이터 로드 함수 (CSV 방식) ---
 def load_cloud_data(ws_name, cols):
     try:
         gid_map = {"apart": "0", "real": "1725468681", "hoga": "1366546489"}
@@ -24,7 +25,6 @@ def load_cloud_data(ws_name, cols):
         if '표시' not in df.columns: df.insert(0, '표시', True)
         for c in cols:
             if c not in df.columns: df[c] = ""
-        # 숫자형 변환
         for col in ['위도', '경도', '현재호가(억)', '실거래가(억)', '호가변동', '변동액']:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
@@ -37,7 +37,7 @@ def load_cloud_data(ws_name, cols):
 def save_cloud_data(df, ws_name):
     try:
         conn.update(spreadsheet=SHEET_URL, worksheet=ws_name, data=df)
-        st.success(f"✅ {ws_name} 저장 성공! 새로고침합니다.")
+        st.success(f"✅ {ws_name} 저장 성공!")
         st.cache_data.clear()
         st.rerun()
     except Exception as e:
@@ -52,27 +52,22 @@ if 'complex_df' not in st.session_state: st.session_state.complex_df = load_clou
 if 'sales_df' not in st.session_state: st.session_state.sales_df = load_cloud_data("real", SALES_COLS)
 if 'hoga_df' not in st.session_state: st.session_state.hoga_df = load_cloud_data("hoga", HOGA_COLS)
 
-# --- 모바일 최적화 UI 스타일 ---
+# --- UI 스타일링 ---
 st.markdown("""
     <style>
     .stButton > button { width: 100%; height: 3.5rem; border-radius: 12px; font-weight: bold; }
     .stTabs [data-baseweb="tab"] { font-size: 16px; font-weight: bold; }
-    /* 전화번호 정렬 및 링크 스타일 */
-    .phone-link { color: #007AFF !important; text-decoration: none; font-weight: bold; font-family: 'Courier New', monospace; }
-    .phone-item { margin-bottom: 5px; display: block; border-bottom: 1px dashed #eee; padding-bottom: 2px; }
+    /* 전화번호 링크 스타일: 크기 축소 및 정렬 */
+    .phone-link { color: #007AFF !important; text-decoration: none; font-weight: 500; font-family: sans-serif; font-size: 13px; }
+    .phone-row { display: flex; align-items: flex-start; margin-bottom: 3px; font-size: 13px; }
+    .phone-label { color: #888; width: 35px; flex-shrink: 0; font-size: 11px; margin-top: 2px; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🏙️ 수도권 자산관리 v63")
+st.title("🏙️ 수도권 자산관리 v64")
 tab1, tab2, tab3 = st.tabs(["📍 지도분석", "📝 정보입력", "📊 데이터관리"])
 
-# --- 탭 1: 지도 분석 ---
 with tab1:
-    st.markdown(f"""<div style="background-color:#f8f9fa; padding:10px; border-radius:10px; font-size:12px; border:1px solid #ddd; margin-bottom:10px;">
-        <b>💰 예산 12.5억 기준 자산분석</b><br>
-        <span style='color:blue;'>●</span> 갭내 | <span style='color:red;'>●</span> 초과 | <span style='color:orange;'>★</span> 급매(-1억)
-    </div>""", unsafe_allow_html=True)
-
     m = folium.Map(location=[37.5665, 126.9780], zoom_start=11)
     
     for _, row in st.session_state.complex_df.iterrows():
@@ -81,7 +76,6 @@ with tab1:
             h_df = st.session_state.hoga_df[st.session_state.hoga_df['아파트명'] == apt]
             s_df = st.session_state.sales_df[st.session_state.sales_df['아파트명'] == apt]
             
-            # 마커 및 가격 로직
             color, icon = "red", "home"
             h_txt, s_txt = "미등록", "미등록"
             
@@ -99,26 +93,34 @@ with tab1:
                 s_c = "red" if s_diff > 0 else "blue" if s_diff < 0 else "black"
                 s_txt = f"<b>{s_val:.2f}억</b> (<span style='color:{s_c};'>{s_diff:+.2f}</span>)"
 
-            # 전화번호 직접 클릭 UI (줄바꿈 및 정렬)
-            phones = str(row['부동산전화번호']).replace(',', '/').split('/')
-            tel_html = ""
-            for p in phones:
+            # --- 전화번호 자동 분류 및 UI 생성 ---
+            raw_phones = str(row['부동산전화번호']).replace(',', '/').split('/')
+            landline_html = ""
+            mobile_html = ""
+            
+            for p in raw_phones:
                 p = p.strip()
-                if p: tel_html += f"<span class='phone-item'>📞 <a href='tel:{p}' class='phone-link'>{p}</a></span>"
+                if not p: continue
+                # 휴대전화(010)와 일반전화 구분
+                if p.startswith("010"):
+                    mobile_html += f"<div class='phone-row'><span class='phone-label'>H.P</span><a href='tel:{p}' class='phone-link'>{p}</a></div>"
+                else:
+                    landline_html += f"<div class='phone-row'><span class='phone-label'>TEL</span><a href='tel:{p}' class='phone-link'>{p}</a></div>"
             
             n_link = f"https://m.land.naver.com/search/result/{urllib.parse.quote(str(apt))}"
             
-            # 팝업 HTML (주택명 폰트 확대 및 🏠 추가)
             popup_html = f"""
             <div style='width:210px; font-family:sans-serif;'>
-                <div style='font-size:18px; font-weight:bold; color:#333; margin-bottom:5px;'>🏠 {apt}</div>
-                <div style='margin-bottom:8px;'>{tel_html}</div>
-                <hr style='margin:5px 0;'>
+                <div style='font-size:18px; font-weight:bold; color:#333; margin-bottom:8px;'>🏠 {apt}</div>
+                <div style='background:#f9f9f9; padding:8px; border-radius:5px; margin-bottom:10px;'>
+                    {landline_html}
+                    {mobile_html}
+                </div>
                 <div style='font-size:13px; line-height:1.6;'>
                     최저호가: {h_txt}<br>
                     실거래가: {s_txt}
                 </div>
-                <a href='{n_link}' target='_blank' style='display:block; text-align:center; color:#03c75a; margin-top:10px; font-size:12px; font-weight:bold; text-decoration:none; border:1px solid #03c75a; border-radius:5px; padding:5px;'>네이버 매물보기 [N]</a>
+                <a href='{n_link}' target='_blank' style='display:block; text-align:center; color:#03c75a; margin-top:10px; font-size:12px; font-weight:bold; text-decoration:none; border:1px solid #03c75a; border-radius:5px; padding:6px;'>네이버 매물보기 [N]</a>
             </div>
             """
             folium.Marker([row['위도'], row['경도']], 
@@ -130,14 +132,14 @@ with tab1:
         st.cache_data.clear()
         st.rerun()
 
-# --- 탭 2: 정보 입력 ---
+# --- 탭 2 & 3 로직은 이전과 동일 (생략 없이 전체 포함) ---
 with tab2:
     mode = st.radio("입력 종류", ["단지등록", "실거래추가", "호가추가"], horizontal=True)
-    with st.form("input_v63"):
+    with st.form("input_v64"):
         if mode == "단지등록":
             f_name = st.text_input("아파트명")
             f_coords = st.text_input("좌표 (예: 37.56, 126.97)")
-            f_phone = st.text_input("부동산 전화번호 (/ 로 구분)")
+            f_phone = st.text_input("전화번호 (010-... / 02-... 구분해서 입력)")
             if st.form_submit_button("단지 저장"):
                 lat, lon = map(float, f_coords.split(','))
                 new_c = pd.DataFrame([{'표시':True, '아파트명':f_name, '부동산전화번호':f_phone, '위도':lat, '경도':lon}])
@@ -157,7 +159,6 @@ with tab2:
                 new_h = pd.DataFrame([{'갱신일자':str(date.today()), '아파트명':f_apt, '현재호가(억)':f_hoga, '호가변동':f_hdiff}])
                 save_cloud_data(pd.concat([st.session_state.hoga_df, new_h]), "hoga")
 
-# --- 탭 3: 데이터 관리 ---
 with tab3:
     target = st.selectbox("편집할 탭", ["apart", "real", "hoga"])
     df_dict = {"apart": st.session_state.complex_df, "real": st.session_state.sales_df, "hoga": st.session_state.hoga_df}
