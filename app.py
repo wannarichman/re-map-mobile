@@ -7,7 +7,7 @@ import urllib.parse
 from datetime import date
 
 # 1. 페이지 설정
-st.set_page_config(page_title="부동산 v68 Mobile", layout="centered")
+st.set_page_config(page_title="부동산 v69 Mobile", layout="centered")
 
 # 구글 시트 정보
 SHEET_ID = "1aIPGxv9w0L4yMSHi8ESn8T3gSq3tNyfk2FKeZJMuu0E"
@@ -59,7 +59,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🏙️ 수도권 자산관리 v68")
+st.title("🏙️ 수도권 자산관리 v69")
 tab1, tab2, tab3 = st.tabs(["📍 지도분석", "📝 정보입력", "📊 데이터관리"])
 
 with tab1:
@@ -74,51 +74,51 @@ with tab1:
             color, icon = "red", "home"
             h_txt, s_txt = "미등록", "미등록"
             
-            # 가격 정보 폰트 강화 (15px) 및 변동액(10px)
             if not h_df.empty:
                 min_h_row = h_df.loc[h_df['현재호가(억)'].idxmin()]
                 h_val, h_diff = float(min_h_row['현재호가(억)']), float(min_h_row['호가변동'])
                 if h_diff <= -1.0: color, icon = "orange", "star"
                 elif abs(h_val - 12.5) <= 1.5: color = "blue"
                 h_c = "red" if h_diff > 0 else "blue" if h_diff < 0 else "black"
-                h_txt = f"<span style='font-size:15px; font-weight:bold;'>{h_val:.2f}억</span> <span style='font-size:10px; color:{h_c};'>({h_diff:+.2f})</span>"
+                h_txt = f"<span style='font-size:16px; font-weight:bold;'>{h_val:.2f}억</span> <span style='font-size:11px; color:{h_c};'>({h_diff:+.2f})</span>"
                 
             if not s_df.empty:
                 last_s = s_df.sort_values('실거래일자').iloc[-1]
                 s_val, s_diff = float(last_s['실거래가(억)']), float(last_s['변동액'])
                 s_c = "red" if s_diff > 0 else "blue" if s_diff < 0 else "black"
-                s_txt = f"<span style='font-size:15px; font-weight:bold;'>{s_val:.2f}억</span> <span style='font-size:10px; color:{s_c};'>({s_diff:+.2f})</span>"
+                s_txt = f"<span style='font-size:16px; font-weight:bold;'>{s_val:.2f}억</span> <span style='font-size:11px; color:{s_c};'>({s_diff:+.2f})</span>"
 
-            # 전화번호 극소 폰트 (10px) 및 간격 고정
+            # --- 전화번호 터치 영역 최적화 (13px) ---
             raw_phones = str(row['부동산전화번호']).replace(',', '/').split('/')
             tel_content = ""
             for p in raw_phones:
                 p = p.strip()
                 if not p: continue
                 label = "H.P" if p.startswith("010") else "TEL"
+                # 터치하기 편하게 font-size를 13px로 키우고 padding을 추가하여 클릭 영역 확대
                 tel_content += f"""
-                <div style='display: flex; align-items: center; margin-bottom: 1px; height: 12px;'>
-                    <span style='color: #bbb; width: 25px; font-size: 8px !important; font-weight: bold;'>{label}</span>
-                    <a href='tel:{p}' style='color: #007AFF !important; text-decoration: none; font-size: 10px !important; margin-left: 12px;'>{p}</a>
+                <div style='display: flex; align-items: center; margin-bottom: 5px; min-height: 20px;'>
+                    <span style='color: #999; width: 35px; font-size: 10px !important; font-weight: bold;'>{label}</span>
+                    <a href='tel:{p}' style='color: #007AFF !important; text-decoration: none; font-size: 13px !important; margin-left: 10px; font-weight: 500; border-bottom: 1px solid #eef;'>{p}</a>
                 </div>"""
             
             n_link = f"https://m.land.naver.com/search/result/{urllib.parse.quote(str(apt))}"
             
-            # 팝업 HTML (가격 강조 UI)
+            # 팝업 HTML (전체적인 밸런스 조정)
             popup_html = f"""
-            <div style='width: 190px; font-family: sans-serif; line-height: 1.2;'>
-                <div style='font-size: 18px !important; font-weight: bold; color: #000; margin-bottom: 4px;'>🏠 {apt}</div>
-                <div style='margin-bottom: 8px; padding-left: 2px;'>
+            <div style='width: 200px; font-family: -apple-system, sans-serif; line-height: 1.3;'>
+                <div style='font-size: 19px !important; font-weight: bold; color: #000; margin-bottom: 8px;'>🏠 {apt}</div>
+                <div style='margin-bottom: 12px; padding: 6px; background: #fcfcfc; border-radius: 6px; border: 1px solid #f0f0f0;'>
                     {tel_content}
                 </div>
-                <hr style='border: 0; border-top: 1px solid #eee; margin: 6px 0;'>
-                <div style='margin-bottom: 5px;'>
-                    <span style='font-size: 11px; color: #666;'>최저호가</span><br>{h_txt}
-                </div>
+                <hr style='border: 0; border-top: 1px solid #eee; margin: 8px 0;'>
                 <div style='margin-bottom: 8px;'>
-                    <span style='font-size: 11px; color: #666;'>실거래가</span><br>{s_txt}
+                    <span style='font-size: 11px; color: #888;'>최저호가</span><br>{h_txt}
                 </div>
-                <a href='{n_link}' target='_blank' style='display: block; text-align: center; color: #03c75a; margin-top: 10px; font-size: 11px; font-weight: bold; text-decoration: none; border: 1px solid #03c75a; border-radius: 4px; padding: 4px;'>네이버 매물보기 [N]</a>
+                <div style='margin-bottom: 10px;'>
+                    <span style='font-size: 11px; color: #888;'>실거래가</span><br>{s_txt}
+                </div>
+                <a href='{n_link}' target='_blank' style='display: block; text-align: center; color: #03c75a; margin-top: 5px; font-size: 12px; font-weight: bold; text-decoration: none; border: 1px solid #03c75a; border-radius: 5px; padding: 6px;'>네이버 매물보기 [N]</a>
             </div>
             """
             folium.Marker([row['위도'], row['경도']], 
@@ -126,14 +126,14 @@ with tab1:
                           icon=folium.Icon(color=color, icon=icon)).add_to(m)
 
     st_folium(m, width="100%", height=500, key="main_map")
-    if st.button("🔄 데이터 전체 새로고침"):
+    if st.button("🔄 전체 데이터 새로고침"):
         st.cache_data.clear()
         st.rerun()
 
 # --- 탭 2 & 3 로직 ---
 with tab2:
     mode = st.radio("입력 종류", ["단지등록", "실거래추가", "호가추가"], horizontal=True)
-    with st.form("input_v68"):
+    with st.form("input_v69"):
         if mode == "단지등록":
             f_name = st.text_input("아파트명")
             f_coords = st.text_input("좌표 (위도, 경도)")
