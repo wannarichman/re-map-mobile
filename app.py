@@ -7,7 +7,7 @@ import urllib.parse
 from datetime import date
 
 # 1. 페이지 설정
-st.set_page_config(page_title="부동산 v66 Mobile", layout="centered")
+st.set_page_config(page_title="부동산 v68 Mobile", layout="centered")
 
 # 구글 시트 정보
 SHEET_ID = "1aIPGxv9w0L4yMSHi8ESn8T3gSq3tNyfk2FKeZJMuu0E"
@@ -15,7 +15,7 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}"
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- 데이터 로드 함수 (CSV 방식) ---
+# --- 데이터 로드 함수 ---
 def load_cloud_data(ws_name, cols):
     try:
         gid_map = {"apart": "0", "real": "1725468681", "hoga": "1366546489"}
@@ -51,21 +51,15 @@ if 'complex_df' not in st.session_state: st.session_state.complex_df = load_clou
 if 'sales_df' not in st.session_state: st.session_state.sales_df = load_cloud_data("real", SALES_COLS)
 if 'hoga_df' not in st.session_state: st.session_state.hoga_df = load_cloud_data("hoga", HOGA_COLS)
 
-# --- UI 스타일링 (전화번호 극소 폰트 및 간격 최적화) ---
+# --- UI 스타일링 ---
 st.markdown("""
     <style>
     .stButton > button { width: 100%; height: 3.5rem; border-radius: 12px; font-weight: bold; }
     .stTabs [data-baseweb="tab"] { font-size: 16px; font-weight: bold; }
-    
-    /* 전화번호 링크 스타일: 극소 폰트(11px) 및 색상 연하게 */
-    .phone-link { color: #007AFF !important; text-decoration: none; font-weight: 400; font-family: sans-serif; font-size: 11px; margin-left: 8px; }
-    .phone-row { display: flex; align-items: center; margin-bottom: 2px; height: 16px; }
-    .phone-label { color: #bbb; width: 30px; flex-shrink: 0; font-size: 9px; font-weight: 700; letter-spacing: 0.2px; }
-    .popup-container { width: 190px; font-family: -apple-system, sans-serif; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🏙️ 수도권 자산관리 v66")
+st.title("🏙️ 수도권 자산관리 v68")
 tab1, tab2, tab3 = st.tabs(["📍 지도분석", "📝 정보입력", "📊 데이터관리"])
 
 with tab1:
@@ -80,48 +74,51 @@ with tab1:
             color, icon = "red", "home"
             h_txt, s_txt = "미등록", "미등록"
             
+            # 가격 정보 폰트 강화 (15px) 및 변동액(10px)
             if not h_df.empty:
                 min_h_row = h_df.loc[h_df['현재호가(억)'].idxmin()]
                 h_val, h_diff = float(min_h_row['현재호가(억)']), float(min_h_row['호가변동'])
                 if h_diff <= -1.0: color, icon = "orange", "star"
                 elif abs(h_val - 12.5) <= 1.5: color = "blue"
                 h_c = "red" if h_diff > 0 else "blue" if h_diff < 0 else "black"
-                h_txt = f"<b>{h_val:.2f}억</b> (<span style='font-size:10px; color:{h_c};'>{h_diff:+.2f}</span>)"
+                h_txt = f"<span style='font-size:15px; font-weight:bold;'>{h_val:.2f}억</span> <span style='font-size:10px; color:{h_c};'>({h_diff:+.2f})</span>"
                 
             if not s_df.empty:
                 last_s = s_df.sort_values('실거래일자').iloc[-1]
                 s_val, s_diff = float(last_s['실거래가(억)']), float(last_s['변동액'])
                 s_c = "red" if s_diff > 0 else "blue" if s_diff < 0 else "black"
-                s_txt = f"<b>{s_val:.2f}억</b> (<span style='font-size:10px; color:{s_c};'>{s_diff:+.2f}</span>)"
+                s_txt = f"<span style='font-size:15px; font-weight:bold;'>{s_val:.2f}억</span> <span style='font-size:10px; color:{s_c};'>({s_diff:+.2f})</span>"
 
-            # --- 전화번호 분류 및 미세 폰트 적용 ---
+            # 전화번호 극소 폰트 (10px) 및 간격 고정
             raw_phones = str(row['부동산전화번호']).replace(',', '/').split('/')
-            landline_html = ""
-            mobile_html = ""
-            
+            tel_content = ""
             for p in raw_phones:
                 p = p.strip()
                 if not p: continue
-                if p.startswith("010"):
-                    mobile_html += f"<div class='phone-row'><span class='phone-label'>H.P</span><a href='tel:{p}' class='phone-link'>{p}</a></div>"
-                else:
-                    landline_html += f"<div class='phone-row'><span class='phone-label'>TEL</span><a href='tel:{p}' class='phone-link'>{p}</a></div>"
+                label = "H.P" if p.startswith("010") else "TEL"
+                tel_content += f"""
+                <div style='display: flex; align-items: center; margin-bottom: 1px; height: 12px;'>
+                    <span style='color: #bbb; width: 25px; font-size: 8px !important; font-weight: bold;'>{label}</span>
+                    <a href='tel:{p}' style='color: #007AFF !important; text-decoration: none; font-size: 10px !important; margin-left: 12px;'>{p}</a>
+                </div>"""
             
             n_link = f"https://m.land.naver.com/search/result/{urllib.parse.quote(str(apt))}"
             
+            # 팝업 HTML (가격 강조 UI)
             popup_html = f"""
-            <div class='popup-container'>
-                <div style='font-size:18px; font-weight:bold; color:#000; margin-bottom:6px;'>🏠 {apt}</div>
-                <div style='padding-left:4px; margin-bottom:10px;'>
-                    {landline_html}
-                    {mobile_html}
+            <div style='width: 190px; font-family: sans-serif; line-height: 1.2;'>
+                <div style='font-size: 18px !important; font-weight: bold; color: #000; margin-bottom: 4px;'>🏠 {apt}</div>
+                <div style='margin-bottom: 8px; padding-left: 2px;'>
+                    {tel_content}
                 </div>
-                <hr style='border:0; border-top:1px solid #eee; margin:8px 0;'>
-                <div style='font-size:12px; line-height:1.6; color:#666;'>
-                    최저호가: {h_txt}<br>
-                    실거래가: {s_txt}
+                <hr style='border: 0; border-top: 1px solid #eee; margin: 6px 0;'>
+                <div style='margin-bottom: 5px;'>
+                    <span style='font-size: 11px; color: #666;'>최저호가</span><br>{h_txt}
                 </div>
-                <a href='{n_link}' target='_blank' style='display:block; text-align:center; color:#03c75a; margin-top:10px; font-size:11px; font-weight:bold; text-decoration:none; border:1px solid #03c75a; border-radius:4px; padding:4px;'>네이버 매물보기 [N]</a>
+                <div style='margin-bottom: 8px;'>
+                    <span style='font-size: 11px; color: #666;'>실거래가</span><br>{s_txt}
+                </div>
+                <a href='{n_link}' target='_blank' style='display: block; text-align: center; color: #03c75a; margin-top: 10px; font-size: 11px; font-weight: bold; text-decoration: none; border: 1px solid #03c75a; border-radius: 4px; padding: 4px;'>네이버 매물보기 [N]</a>
             </div>
             """
             folium.Marker([row['위도'], row['경도']], 
@@ -133,10 +130,10 @@ with tab1:
         st.cache_data.clear()
         st.rerun()
 
-# --- 탭 2 & 3 로직 유지 ---
+# --- 탭 2 & 3 로직 ---
 with tab2:
     mode = st.radio("입력 종류", ["단지등록", "실거래추가", "호가추가"], horizontal=True)
-    with st.form("input_v66"):
+    with st.form("input_v68"):
         if mode == "단지등록":
             f_name = st.text_input("아파트명")
             f_coords = st.text_input("좌표 (위도, 경도)")
