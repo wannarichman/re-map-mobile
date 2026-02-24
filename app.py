@@ -5,10 +5,9 @@ from streamlit_folium import st_folium
 from streamlit_gsheets import GSheetsConnection
 import urllib.parse
 from datetime import date
-import re
 
 # 1. 페이지 설정
-st.set_page_config(page_title="부동산 v64 Mobile", layout="centered")
+st.set_page_config(page_title="부동산 v65 Mobile", layout="centered")
 
 # 구글 시트 정보
 SHEET_ID = "1aIPGxv9w0L4yMSHi8ESn8T3gSq3tNyfk2FKeZJMuu0E"
@@ -52,19 +51,20 @@ if 'complex_df' not in st.session_state: st.session_state.complex_df = load_clou
 if 'sales_df' not in st.session_state: st.session_state.sales_df = load_cloud_data("real", SALES_COLS)
 if 'hoga_df' not in st.session_state: st.session_state.hoga_df = load_cloud_data("hoga", HOGA_COLS)
 
-# --- UI 스타일링 ---
+# --- UI 스타일링 (전화번호 디자인 미세 조정) ---
 st.markdown("""
     <style>
     .stButton > button { width: 100%; height: 3.5rem; border-radius: 12px; font-weight: bold; }
     .stTabs [data-baseweb="tab"] { font-size: 16px; font-weight: bold; }
-    /* 전화번호 링크 스타일: 크기 축소 및 정렬 */
-    .phone-link { color: #007AFF !important; text-decoration: none; font-weight: 500; font-family: sans-serif; font-size: 13px; }
-    .phone-row { display: flex; align-items: flex-start; margin-bottom: 3px; font-size: 13px; }
-    .phone-label { color: #888; width: 35px; flex-shrink: 0; font-size: 11px; margin-top: 2px; }
+    /* 전화번호 링크 스타일: 크기 12px로 축소 및 간격 확보 */
+    .phone-link { color: #007AFF !important; text-decoration: none; font-weight: 500; font-family: 'Helvetica', sans-serif; font-size: 12px; }
+    .phone-row { display: flex; align-items: center; margin-bottom: 4px; }
+    .phone-label { color: #999; width: 42px; flex-shrink: 0; font-size: 10px; font-weight: bold; letter-spacing: 0.5px; }
+    .popup-container { width: 200px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🏙️ 수도권 자산관리 v64")
+st.title("🏙️ 수도권 자산관리 v65")
 tab1, tab2, tab3 = st.tabs(["📍 지도분석", "📝 정보입력", "📊 데이터관리"])
 
 with tab1:
@@ -93,7 +93,7 @@ with tab1:
                 s_c = "red" if s_diff > 0 else "blue" if s_diff < 0 else "black"
                 s_txt = f"<b>{s_val:.2f}억</b> (<span style='color:{s_c};'>{s_diff:+.2f}</span>)"
 
-            # --- 전화번호 자동 분류 및 UI 생성 ---
+            # --- 전화번호 분류 및 간격 UI 적용 ---
             raw_phones = str(row['부동산전화번호']).replace(',', '/').split('/')
             landline_html = ""
             mobile_html = ""
@@ -101,26 +101,25 @@ with tab1:
             for p in raw_phones:
                 p = p.strip()
                 if not p: continue
-                # 휴대전화(010)와 일반전화 구분
                 if p.startswith("010"):
-                    mobile_html += f"<div class='phone-row'><span class='phone-label'>H.P</span><a href='tel:{p}' class='phone-link'>{p}</a></div>"
+                    mobile_html += f"<div class='phone-row'><span class='phone-label'>H.P</span> <a href='tel:{p}' class='phone-link'>{p}</a></div>"
                 else:
-                    landline_html += f"<div class='phone-row'><span class='phone-label'>TEL</span><a href='tel:{p}' class='phone-link'>{p}</a></div>"
+                    landline_html += f"<div class='phone-row'><span class='phone-label'>TEL</span> <a href='tel:{p}' class='phone-link'>{p}</a></div>"
             
             n_link = f"https://m.land.naver.com/search/result/{urllib.parse.quote(str(apt))}"
             
             popup_html = f"""
-            <div style='width:210px; font-family:sans-serif;'>
-                <div style='font-size:18px; font-weight:bold; color:#333; margin-bottom:8px;'>🏠 {apt}</div>
-                <div style='background:#f9f9f9; padding:8px; border-radius:5px; margin-bottom:10px;'>
+            <div class='popup-container'>
+                <div style='font-size:18px; font-weight:bold; color:#333; margin-bottom:10px;'>🏠 {apt}</div>
+                <div style='background:#fcfcfc; padding:8px; border:1px solid #f0f0f0; border-radius:6px; margin-bottom:12px;'>
                     {landline_html}
                     {mobile_html}
                 </div>
-                <div style='font-size:13px; line-height:1.6;'>
+                <div style='font-size:12px; line-height:1.7; color:#555;'>
                     최저호가: {h_txt}<br>
                     실거래가: {s_txt}
                 </div>
-                <a href='{n_link}' target='_blank' style='display:block; text-align:center; color:#03c75a; margin-top:10px; font-size:12px; font-weight:bold; text-decoration:none; border:1px solid #03c75a; border-radius:5px; padding:6px;'>네이버 매물보기 [N]</a>
+                <a href='{n_link}' target='_blank' style='display:block; text-align:center; color:#03c75a; margin-top:10px; font-size:11px; font-weight:bold; text-decoration:none; border:1px solid #03c75a; border-radius:4px; padding:5px;'>네이버 매물보기 [N]</a>
             </div>
             """
             folium.Marker([row['위도'], row['경도']], 
@@ -132,10 +131,10 @@ with tab1:
         st.cache_data.clear()
         st.rerun()
 
-# --- 탭 2 & 3 로직은 이전과 동일 (생략 없이 전체 포함) ---
+# --- 탭 2 & 3 로직 유지 ---
 with tab2:
     mode = st.radio("입력 종류", ["단지등록", "실거래추가", "호가추가"], horizontal=True)
-    with st.form("input_v64"):
+    with st.form("input_v65"):
         if mode == "단지등록":
             f_name = st.text_input("아파트명")
             f_coords = st.text_input("좌표 (예: 37.56, 126.97)")
