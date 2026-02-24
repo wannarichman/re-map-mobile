@@ -18,19 +18,19 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 # --- 클라우드 데이터 로드/저장 함수 ---
 def load_cloud_data(ws_name, cols):
     try:
-        df = conn.read(spreadsheet=SHEET_URL, worksheet=ws_name, ttl=0)
-        # 기본 컬럼 및 데이터 전처리
+        # 시트 ID를 직접 지정하여 강제로 탭을 찾아갑니다.
+        spreadsheet_id = "1aIPGxv9w0L4yMSHi8ESn8T3gSq3tNyfk2FKeZJMuu0E"
+        df = conn.read(spreadsheet=f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit#gid=0", 
+                       worksheet=ws_name, ttl=0)
+        
+        # (이하 기존 전처리 로직 동일)
         if '표시' not in df.columns: df.insert(0, '표시', True)
         for c in cols:
-            if c not in df.columns: df[c] = True if c == '표시' else ""
-        df['표시'] = df['표시'].fillna(True).astype(bool)
-        # 모바일 가독성을 위한 문자열 변환 (0.0 방지)
-        for col in ['동', '층']:
-            if col in df.columns:
-                df[col] = df[col].astype(str).replace(['nan', 'None', '0.0'], '')
+            if c not in df.columns: df[c] = ""
         return df[cols]
     except Exception as e:
-        st.error(f"'{ws_name}' 탭을 불러올 수 없습니다. 시트 이름을 확인하세요.")
+        # 에러 발생 시 구체적인 원인을 화면에 표시합니다.
+        st.error(f"⚠️ '{ws_name}' 탭 인식 실패: {str(e)}")
         return pd.DataFrame(columns=cols)
 
 def save_cloud_data(df, ws_name):
