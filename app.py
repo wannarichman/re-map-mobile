@@ -6,56 +6,59 @@ from streamlit_gsheets import GSheetsConnection
 from datetime import date
 import urllib.parse
 
-# 1. 페이지 설정 및 iOS 최적화
+# 1. 페이지 설정 및 모바일 최적화
 st.set_page_config(page_title="부동산 v59 Mobile", layout="centered")
 
-# [핵심 수정] 400 에러 방지를 위한 최적화된 시트 주소 형식
+# [반영 완료] 사용자님의 실제 구글 시트 주소
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1aIPGxv9w0L4yMSHi8ESn8T3gSq3tNyfk2FKeZJMuu0E"
 
-# 구글 시트 연결 엔진 설정
+# 구글 시트 연결 엔진
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- 데이터 로드 및 저장 함수 (인식 오류 방지 로직 강화) ---
+# --- [핵심 수정] 탭 이름 대신 순서(Index)로 강제 로드 ---
 def load_cloud_data(ws_name, cols):
     try:
-        # worksheet 이름으로 직접 호출하여 Bad Request 방지
-        df = conn.read(spreadsheet=SHEET_URL, worksheet=ws_name, ttl=0)
+        # 구글 시트의 탭 순서: apart(0번), real(1번), hoga(2번) [cite: 2026-02-24]
+        ws_idx = 0 if ws_name == "apart" else 1 if ws_name == "real" else 2
         
-        # 기본 컬럼 생성 및 데이터 전처리
+        # 이름 기반 호출 시 발생하는 Bad Request를 방지하기 위해 인덱스(순서) 사용 [cite: 2026-02-24]
+        df = conn.read(spreadsheet=SHEET_URL, worksheet=ws_idx, ttl=0)
+        
+        # 기본 컬럼 및 데이터 전처리
         if '표시' not in df.columns: df.insert(0, '표시', True)
         for c in cols:
             if c not in df.columns: df[c] = True if c == '표시' else ""
         
-        # 모바일 가독성 및 타입 변환
         df['표시'] = df['표시'].fillna(True).astype(bool)
+        # 0.0 표기 방지를 위한 문자열 처리
         for col in ['동', '층']:
             if col in df.columns:
                 df[col] = df[col].astype(str).replace(['nan', 'None', '0.0'], '')
         return df[cols]
     except Exception as e:
-        # 에러 발생 시 사용자에게 탭 이름 확인 메시지 출력
-        st.error(f"⚠️ '{ws_name}' 탭 연결 확인 필요: {e}")
+        # 에러 발생 시 사용자에게 구체적인 순서와 원인 표시 [cite: 2026-02-24]
+        st.error(f"⚠️ {ws_name}({ws_idx}번 탭) 로드 실패: {e}")
         return pd.DataFrame(columns=cols)
 
 def save_cloud_data(df, ws_name):
     try:
-        conn.update(spreadsheet=SHEET_URL, worksheet=ws_name, data=df)
-        st.success(f"✅ {ws_name} 저장 완료!")
+        ws_idx = 0 if ws_name == "apart" else 1 if ws_name == "real" else 2
+        conn.update(spreadsheet=SHEET_URL, worksheet=ws_idx, data=df)
+        st.success(f"✅ {ws_name} 데이터가 클라우드에 저장되었습니다.")
         st.cache_data.clear()
     except Exception as e:
         st.error(f"❌ 저장 실패: {e}")
 
-# --- v58 데이터 구조 정의 ---
+# --- v58 데이터 구조 정의 및 세션 상태 로드 ---
 COMPLEX_COLS = ['표시', '아파트명', '세대수', '연식', '출근버스', '퇴근버스', '부동산전화번호', '위도', '경도']
 SALES_COLS = ['실거래일자', '아파트명', '평형(m2)', '실거래가(억)', '변동액']
 HOGA_COLS = ['갱신일자', '아파트명', '평형(m2)', '동', '층', '현재호가(억)', '호가변동']
 
-# 세션 상태에 데이터 로딩
 if 'complex_df' not in st.session_state: st.session_state.complex_df = load_cloud_data("apart", COMPLEX_COLS)
 if 'sales_df' not in st.session_state: st.session_state.sales_df = load_cloud_data("real", SALES_COLS)
 if 'hoga_df' not in st.session_state: st.session_state.hoga_df = load_cloud_data("hoga", HOGA_COLS)
 
-# --- 모바일 전용 CSS 디자인 ---
+# --- 모바일 전용 CSS 디자인 --- [cite: 2026-02-24]
 st.markdown("""
     <style>
     .stButton > button { width: 100%; height: 3.5rem; border-radius: 12px; font-weight: bold; font-size: 16px; margin-bottom: 10px; }
@@ -69,13 +72,13 @@ st.title("🏙️ 수도권 자산관리 v59")
 tab1, tab2, tab3 = st.tabs(["📍 지도분석", "📝 신규등록", "📊 시세관리"])
 
 with tab1:
-    # v58 범례 및 예산 로직 유지 (12.5억 기준)
+    # v58 범례 및 예산 로직 (12.5억 기준) [cite: 2026-02-11, 2026-02-24]
     st.markdown("""<div style="background-color: #f9f9f9; padding: 10px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px; font-size: 12px;">
         <b>📍 예산 12.5억 기준 범례</b><br>
         <span style="color:blue;">●</span> 갭 1.5억 내 | <span style="color:red;">●</span> 갭 초과 | <span style="color:orange;">★</span> 급매물
     </div>""", unsafe_allow_html=True)
     
-    # [v58] 수도권 철벽 고정 지도 설정
+    # [v58] 수도권 철벽 고정 지도 설정 (서울 중심) [cite: 2026-02-24]
     m = folium.Map(
         location=[37.5665, 126.9780], zoom_start=11, min_zoom=10, max_bounds=True,
         min_lat=37.0, max_lat=38.3, min_lon=126.4, max_lon=127.7
@@ -95,7 +98,7 @@ with tab1:
                 min_h = apt_h.loc[apt_h['현재호가(억)'].idxmin()]
                 h_val, h_diff = min_h['현재호가(억)'], min_h['호가변동']
                 hc = "red" if h_diff > 0 else "blue" if h_diff < 0 else "black"
-                # v58 네이버 [N] 버튼 디자인
+                # v58 네이버 [N] 버튼 디자인 [cite: 2026-02-24]
                 h_txt = f"<b>{h_val:.1f}억</b> <a href='{n_link}' target='_blank' style='text-decoration:none; color:white; background-color:#03c75a; padding:1px 4px; border-radius:2px; font-size:10px; font-weight:bold;'>N</a>"
                 color = "blue" if abs(h_val - 12.5) <= 1.5 else "red"
                 if (apt_h['현재호가(억)'].mean() - h_val) >= 1.0: color, icon = "orange", "star"
