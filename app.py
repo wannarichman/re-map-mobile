@@ -7,19 +7,19 @@ import urllib.parse
 from datetime import date
 
 # 1. 페이지 설정 및 모바일 최적화
-st.set_page_config(page_title="부동산 v86 UI Final", layout="centered")
+st.set_page_config(page_title="부동산 v87 Full Fix", layout="centered")
 
-# 구글 시트 연결 설정
+# 구글 시트 연결
 SHEET_ID = "1aIPGxv9w0L4yMSHi8ESn8T3gSq3tNyfk2FKeZJMuu0E"
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}"
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- 컬럼 정의 (구글 시트와 1:1 매칭) ---
+# --- 컬럼 정의 ---
 COMPLEX_COLS = ['표시', '아파트명', '세대수', '연식', '출근버스', '퇴근버스', '부동산전화번호', '위도', '경도']
 SALES_COLS = ['실거래일자', '아파트명', '평형(m2)', '실거래가(억)', '변동액']
 HOGA_COLS = ['갱신일자', '아파트명', '평형(m2)', '동', '층', '현재호가(억)', '호가변동']
 
-# --- 데이터 로드 함수 (수치 데이터 자동 변환) ---
+# --- 데이터 로드 함수 ---
 def load_cloud_data(ws_name, cols):
     try:
         gid_map = {"apart": "0", "real": "1725468681", "hoga": "1366546489"}
@@ -35,13 +35,12 @@ def load_cloud_data(ws_name, cols):
     except Exception:
         return pd.DataFrame(columns=cols)
 
-# --- 세션 초기화 (데이터 선행 로드) ---
+# --- 세션 초기화 ---
 if 'complex_df' not in st.session_state: st.session_state.complex_df = load_cloud_data("apart", COMPLEX_COLS)
 if 'sales_df' not in st.session_state: st.session_state.sales_df = load_cloud_data("real", SALES_COLS)
 if 'hoga_df' not in st.session_state: st.session_state.hoga_df = load_cloud_data("hoga", HOGA_COLS)
 if 'clicked_coords' not in st.session_state: st.session_state.clicked_coords = ""
 
-# --- 데이터 저장 함수 ---
 def save_cloud_data(df, ws_name):
     try:
         conn.update(spreadsheet=SHEET_URL, worksheet=ws_name, data=df)
@@ -51,33 +50,25 @@ def save_cloud_data(df, ws_name):
     except Exception as e:
         st.error(f"❌ 저장 실패: {e}")
 
-# --- [수정] UI 스타일링 (전화번호 크기 및 간격 정밀 조정) ---
+# --- UI 스타일링 ---
 st.markdown("""
     <style>
     .stButton > button { width: 100%; height: 3.5rem; border-radius: 12px; font-weight: bold; }
     .stTabs [data-baseweb="tab"] { font-size: 16px; font-weight: bold; }
-    
-    /* 전화번호: 폰트 12px로 축소, 라벨(TEL)과의 간격 15px 확보 */
     .phone-link { color: #007AFF !important; text-decoration: none; font-size: 12px !important; margin-left: 15px; font-weight: 500; display: inline-block; }
     .phone-row { display: flex; align-items: center; margin-bottom: 4px; min-height: 22px; }
     .phone-label { color: #999; width: 38px; font-size: 10px !important; font-weight: bold; text-align: left; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🏙️ 수도권 자산관리 v86")
+st.title("🏙️ 수도권 자산관리 v87")
 tab1, tab2, tab3 = st.tabs(["📍 지도분석", "📝 정보입력", "📊 데이터관리"])
 
-# --- 탭 1: 지도 분석 (범례 및 수정된 UI 적용) ---
+# --- 탭 1: 지도 분석 ---
 with tab1:
-    # 지도 범례 (12.5억 예산 기준)
-    st.markdown("""
-    <div style="background-color: #f9f9f9; padding: 10px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px; font-size: 12px;">
-        <b>🎨 마커 색상 기준 (예산 12.5억 대비)</b><br>
-        <span style="color:red;">●</span> 빨간집: 1.5억 초과 | 
-        <span style="color:blue;">●</span> 파란집: 1.5억 이하 | 
-        <span style="color:orange;">★</span> 주황별: 기존 대비 1억 하락(급매)
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("""<div style="background-color: #f9f9f9; padding: 10px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px; font-size: 11px;">
+        <b>🎨 마커 색상 기준 (12.5억 대비)</b> | <span style="color:red;">●</span> 1.5억 초과 | <span style="color:blue;">●</span> 1.5억 이하 | <span style="color:orange;">★</span> 1억 하락(급매)
+    </div>""", unsafe_allow_html=True)
 
     m = folium.Map(location=[37.5665, 126.9780], zoom_start=11)
     for _, row in st.session_state.complex_df.iterrows():
@@ -87,8 +78,6 @@ with tab1:
             s_df = st.session_state.sales_df[st.session_state.sales_df['아파트명'] == apt]
             
             color, icon, h_txt, s_txt = "red", "home", "미등록", "미등록"
-            
-            # [수정] 가격 16px 유지, 변동액 부분 13px로 확대 적용
             if not h_df.empty:
                 min_h = h_df.loc[h_df['현재호가(억)'].idxmin()]
                 h_val, h_diff = float(min_h['현재호가(억)']), float(min_h['호가변동'])
@@ -96,7 +85,6 @@ with tab1:
                 elif abs(h_val - 12.5) <= 1.5: color = "blue"
                 h_c = "red" if h_diff > 0 else "blue" if h_diff < 0 else "black"
                 h_txt = f"<span style='font-size:16px; font-weight:bold;'>{h_val:.2f}억</span> <span style='font-size:13px; color:{h_c};'>({h_diff:+.2f})</span>"
-            
             if not s_df.empty:
                 last_s = s_df.sort_values('실거래일자').iloc[-1]
                 s_val, s_diff = float(last_s['실거래가(억)']), float(last_s['변동액'])
@@ -106,9 +94,7 @@ with tab1:
             phones = str(row['부동산전화번호']).replace(',', '/').split('/')
             tel_html = "".join([f"<div class='phone-row'><span class='phone-label'>{'H.P' if p.strip().startswith('010') else 'TEL'}</span><a href='tel:{p.strip()}' class='phone-link'>{p.strip()}</a></div>" for p in phones if p.strip()])
             
-            # [최종 UI] 주택명 19px / 가격 16px / 전화번호 12px / 변동액 13px
-            popup_html = f"""
-            <div style='width: 200px; font-family: sans-serif; line-height: 1.3;'>
+            popup_html = f"""<div style='width: 200px; font-family: sans-serif; line-height: 1.3;'>
                 <div style='font-size: 19px !important; font-weight: bold; color: #000; margin-bottom: 8px;'>🏠 {apt}</div>
                 <div style='margin-bottom: 12px; padding: 6px; background: #fcfcfc; border-radius: 6px; border: 1px solid #f0f0f0;'>{tel_html}</div>
                 <hr style='border: 0; border-top: 1px solid #eee; margin: 8px 0;'>
@@ -118,14 +104,12 @@ with tab1:
             </div>"""
             folium.Marker([row['위도'], row['경도']], popup=folium.Popup(popup_html, max_width=250), icon=folium.Icon(color=color, icon=icon)).add_to(m)
 
-    # 지도를 변수에 할당하여 클릭 이벤트 캡처
     map_data = st_folium(m, width="100%", height=500, key="main_map")
-    
     if map_data and map_data.get("last_clicked"):
         st.session_state.clicked_coords = f"{map_data['last_clicked']['lat']:.6f}, {map_data['last_clicked']['lng']:.6f}"
         st.success("📍 좌표 선택됨!")
 
-# --- 탭 2: 정보 입력 (실시간 필터링 기능 강화) ---
+# --- 탭 2: 정보 입력 (실거래가 입력창 복구 완료) ---
 with tab2:
     mode = st.radio("대분류", ["단지등록", "실거래추가", "호가추가"], horizontal=True)
     
@@ -139,13 +123,25 @@ with tab2:
             if st.form_submit_button("🏙️ 신규 단지 저장"):
                 if f_name and f_coords:
                     lat, lon = map(float, f_coords.split(','))
-                    new_row = pd.DataFrame([{'표시':True, '아파트명':f_name, '세대수':f_gen, '연식':f_year, '부동산전화번호':f_phone, '위도':lat, '경도':lon}])
+                    new_row = pd.DataFrame([{'표시':True, '아파트명':f_name, '세대수':f_gen, '연식':f_year, '출근버스':"", '퇴근버스':"", '부동산전화번호':f_phone, '위도':lat, '경도':lon}])
                     save_cloud_data(pd.concat([st.session_state.complex_df, new_row]), "apart")
+
+    elif mode == "실거래추가":
+        # [복구 포인트] 실거래가 입력 폼
+        with st.form("f_real"):
+            f_apt = st.selectbox("단지 선택", st.session_state.complex_df['아파트명'].unique())
+            f_date = st.date_input("거래일자", value=date.today())
+            f_size = st.text_input("평형(m2)")
+            f_price = st.number_input("거래가(억)", format="%.2f")
+            if st.form_submit_button("💰 실거래 저장"):
+                prev_s = st.session_state.sales_df[st.session_state.sales_df['아파트명'] == f_apt]
+                last_p = prev_s.sort_values('실거래일자')['실거래가(억)'].iloc[-1] if not prev_s.empty else f_price
+                new_row = pd.DataFrame([{'실거래일자':str(f_date), '아파트명':f_apt, '평형(m2)':f_size, '실거래가(억)':f_price, '변동액':f_price - last_p}])
+                save_cloud_data(pd.concat([st.session_state.sales_df, new_row]), "real")
 
     elif mode == "호가추가":
         h_type = st.radio("방식", ["기존 매물 업데이트", "신규 매물 등록"], horizontal=True)
-        f_apt = st.selectbox("아파트 단지 선택", st.session_state.complex_df['아파트명'].unique())
-        
+        f_apt = st.selectbox("아파트 선택", st.session_state.complex_df['아파트명'].unique())
         apt_hoga_df = st.session_state.hoga_df[st.session_state.hoga_df['아파트명'] == f_apt]
         f_dong, f_floor, f_size, prev_val = "", "", "", 0.0
         
@@ -155,12 +151,12 @@ with tab2:
             matched = apt_hoga_df[apt_hoga_df.apply(lambda x: f"{x['동']}동 {x['층']}층 ({x['평형(m2)']}m2)", axis=1) == sel_item].sort_values('갱신일자').iloc[-1]
             f_dong, f_floor, f_size = matched['동'], matched['층'], matched['평형(m2)']
             prev_val = float(matched['현재호가(억)'])
-            st.info(f"📍 기존 데이터 로드: {f_dong}동 {f_floor}층 | 이전가: {prev_val}억")
+            st.info(f"📍 기존 매물 로드 완료 | 이전가: {prev_val}억")
         elif h_type == "신규 매물 등록":
             c1, c2, c3 = st.columns(3)
             f_dong, f_floor, f_size = c1.text_input("동"), c2.text_input("층"), c3.text_input("평형")
 
-        f_hoga = st.number_input("신규 호가(억)", format="%.2f", value=prev_val if prev_val > 0 else 0.0)
+        f_hoga = st.number_input("신규 호가(억)", format="%.2f", value=prev_val)
         if st.button("📢 호가 저장"):
             if f_dong and f_floor:
                 new_row = pd.DataFrame([{'갱신일자':str(date.today()), '아파트명':f_apt, '평형(m2)':f_size, '동':f_dong, '층':f_floor, '현재호가(억)':f_hoga, '호가변동':f_hoga - prev_val}])
@@ -171,5 +167,4 @@ with tab3:
     target = st.selectbox("데이터 시트", ["apart", "real", "hoga"])
     df_map = {"apart": st.session_state.complex_df, "real": st.session_state.sales_df, "hoga": st.session_state.hoga_df}
     edited_df = st.data_editor(df_map[target], use_container_width=True, num_rows="dynamic", key=f"ed_{target}")
-    if st.button("💾 시트 일괄 저장"):
-        save_cloud_data(edited_df, target)
+    if st.button("💾 시트 일괄 저장"): save_cloud_data(edited_df, target)
