@@ -7,7 +7,7 @@ import urllib.parse
 from datetime import date
 
 # 1. 페이지 설정
-st.set_page_config(page_title="부동산 v82 UI Final", layout="centered")
+st.set_page_config(page_title="부동산 v83 UI Final", layout="centered")
 
 # 구글 시트 연결
 SHEET_ID = "1aIPGxv9w0L4yMSHi8ESn8T3gSq3tNyfk2FKeZJMuu0E"
@@ -50,24 +50,41 @@ def save_cloud_data(df, ws_name):
     except Exception as e:
         st.error(f"❌ 저장 실패: {e}")
 
-# --- UI 스타일링 (폰트 크기 계층화) ---
+# --- UI 스타일링 ---
 st.markdown("""
     <style>
     .stButton > button { width: 100%; height: 3.5rem; border-radius: 12px; font-weight: bold; }
     .stTabs [data-baseweb="tab"] { font-size: 16px; font-weight: bold; }
     
-    /* 전화번호: 12px로 작게 하되 터치 영역(Padding) 확보 */
-    .phone-link { color: #007AFF !important; text-decoration: none; font-size: 12px !important; margin-left: 10px; font-weight: 500; display: inline-block; padding: 2px 0; }
-    .phone-row { display: flex; align-items: center; margin-bottom: 3px; min-height: 22px; }
-    .phone-label { color: #999; width: 32px; font-size: 9px !important; font-weight: bold; }
+    /* 전화번호: 12px, 라벨과의 간격을 15px로 넓힘 */
+    .phone-link { color: #007AFF !important; text-decoration: none; font-size: 12px !important; margin-left: 15px; font-weight: 500; display: inline-block; }
+    .phone-row { display: flex; align-items: center; margin-bottom: 4px; min-height: 22px; }
+    .phone-label { color: #999; width: 35px; font-size: 9px !important; font-weight: bold; text-align: left; }
+    
+    /* 범례 스타일 */
+    .map-legend {
+        position: absolute; bottom: 30px; left: 10px; z-index: 1000;
+        background: rgba(255,255,255,0.9); padding: 10px; border-radius: 8px;
+        border: 1px solid #ccc; font-size: 11px; line-height: 1.6;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🏙️ 관심 매물")
+st.title("🏙️ 수도권 자산관리 v83")
 tab1, tab2, tab3 = st.tabs(["📍 지도분석", "📝 정보입력", "📊 데이터관리"])
 
-# --- 탭 1: 지도 분석 (요청하신 UI 크기 완벽 적용) ---
+# --- 탭 1: 지도 분석 (범례 및 UI 적용) ---
 with tab1:
+    # 지도 범례 표시
+    st.markdown("""
+    <div style="background-color: #f9f9f9; padding: 10px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 10px; font-size: 12px;">
+        <b>🎨 마커 색상 기준 (예산 12.5억 대비)</b><br>
+        <span style="color:red;">●</span> 빨간집: 1.5억 초과 | 
+        <span style="color:blue;">●</span> 파란집: 1.5억 이하 | 
+        <span style="color:orange;">★</span> 주황별: 기존 대비 1억 하락(급매)
+    </div>
+    """, unsafe_allow_html=True)
+
     m = folium.Map(location=[37.5665, 126.9780], zoom_start=11)
     for _, row in st.session_state.complex_df.iterrows():
         if pd.notnull(row['위도']) and row['위도'] != 0:
@@ -77,12 +94,14 @@ with tab1:
             
             color, icon, h_txt, s_txt = "red", "home", "미등록", "미등록"
             
-            # 가격 정보 폰트 크기 (16px)
             if not h_df.empty:
                 min_h = h_df.loc[h_df['현재호가(억)'].idxmin()]
                 h_val, h_diff = float(min_h['현재호가(억)']), float(min_h['호가변동'])
+                
+                # 색상 로직 적용
                 if h_diff <= -1.0: color, icon = "orange", "star"
                 elif abs(h_val - 12.5) <= 1.5: color = "blue"
+                
                 h_c = "red" if h_diff > 0 else "blue" if h_diff < 0 else "black"
                 h_txt = f"<span style='font-size:16px; font-weight:bold;'>{h_val:.2f}억</span> <span style='font-size:10px; color:{h_c};'>({h_diff:+.2f})</span>"
             
@@ -95,7 +114,6 @@ with tab1:
             phones = str(row['부동산전화번호']).replace(',', '/').split('/')
             tel_html = "".join([f"<div class='phone-row'><span class='phone-label'>{'H.P' if p.strip().startswith('010') else 'TEL'}</span><a href='tel:{p.strip()}' class='phone-link'>{p.strip()}</a></div>" for p in phones if p.strip()])
             
-            # [최종 UI 비율] 단지명 19px / 가격 16px / 전화번호 12px
             popup_html = f"""
             <div style='width: 200px; font-family: sans-serif; line-height: 1.3;'>
                 <div style='font-size: 19px !important; font-weight: bold; color: #000; margin-bottom: 8px;'>🏠 {apt}</div>
@@ -112,10 +130,9 @@ with tab1:
         st.session_state.clicked_coords = f"{map_data['last_clicked']['lat']:.6f}, {map_data['last_clicked']['lng']:.6f}"
         st.success("📍 좌표 선택됨!")
 
-# --- 탭 2: 정보 입력 (실시간 필터링 및 동기화) ---
+# --- 탭 2: 정보 입력 ---
 with tab2:
     mode = st.radio("대분류", ["단지등록", "실거래추가", "호가추가"], horizontal=True)
-    
     if mode == "단지등록":
         with st.form("f_complex"):
             f_name = st.text_input("아파트명")
@@ -142,10 +159,8 @@ with tab2:
                 save_cloud_data(pd.concat([st.session_state.sales_df, new_row]), "real")
 
     elif mode == "호가추가":
-        # 폼 밖에서 동작하여 실시간 필터링 보장
         h_type = st.radio("방식", ["기존 매물 업데이트", "신규 매물 등록"], horizontal=True)
         f_apt = st.selectbox("아파트 단지 선택", st.session_state.complex_df['아파트명'].unique())
-        
         apt_hoga_df = st.session_state.hoga_df[st.session_state.hoga_df['아파트명'] == f_apt]
         f_dong, f_floor, f_size, prev_val = "", "", "", 0.0
         
@@ -155,15 +170,13 @@ with tab2:
             matched = apt_hoga_df[apt_hoga_df.apply(lambda x: f"{x['동']}동 {x['층']}층 ({x['평형(m2)']}m2)", axis=1) == sel_item].sort_values('갱신일자').iloc[-1]
             f_dong, f_floor, f_size = matched['동'], matched['층'], matched['평형(m2)']
             prev_val = float(matched['현재호가(억)'])
-            st.info(f"📍 기존 정보 로드: {f_dong}동 {f_floor}층 ({f_size}m2) | 이전가: {prev_val}억")
+            st.info(f"📍 기존 정보: {f_dong}동 {f_floor}층 ({f_size}m2) | 이전가: {prev_val}억")
         elif h_type == "신규 매물 등록":
             c1, c2, c3 = st.columns(3)
             f_dong, f_floor, f_size = c1.text_input("동"), c2.text_input("층"), c3.text_input("평형")
-        else:
-            st.warning("등록된 기존 매물이 없습니다.")
 
         f_hoga = st.number_input("신규 호가(억)", format="%.2f", value=prev_val if prev_val > 0 else 0.0)
-        if st.button("📢 호가 데이터 클라우드 저장"):
+        if st.button("📢 호가 저장"):
             if f_dong and f_floor:
                 new_row = pd.DataFrame([{'갱신일자':str(date.today()), '아파트명':f_apt, '평형(m2)':f_size, '동':f_dong, '층':f_floor, '현재호가(억)':f_hoga, '호가변동':f_hoga - prev_val}])
                 save_cloud_data(pd.concat([st.session_state.hoga_df, new_row]), "hoga")
